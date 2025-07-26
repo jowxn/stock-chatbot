@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional
 import uvicorn
 from stock_data import IndianStockData
-from .utils import format_currency, format_percentage
+from utils import format_currency, format_percentage
 import os
 from dotenv import load_dotenv
 
