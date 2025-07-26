@@ -30,23 +30,6 @@ class IndianStockData:
     def __init__(self):
         self.api_key = os.getenv("FMP_API_KEY")
         self.base_url = "https://financialmodelingprep.com/api/v3"
-        self.nse_symbols = {
-            "RELIANCE": "RELIANCE.NS",
-            "TCS": "TCS.NS",
-            "INFY": "INFY.NS",
-            "HDFCBANK": "HDFCBANK.NS",
-            "ICICIBANK": "ICICIBANK.NS",
-            "HINDUNILVR": "HINDUNILVR.NS",
-            "SBIN": "SBIN.NS",
-            "BHARTIARTL": "BHARTIARTL.NS",
-            "ITC": "ITC.NS",
-            "KOTAKBANK": "KOTAKBANK.NS",
-            "LT": "LT.NS",
-            "ASIANPAINT": "ASIANPAINT.NS",
-            "MARUTI": "MARUTI.NS",
-            "BAJFINANCE": "BAJFINANCE.NS",
-            "HCLTECH": "HCLTECH.NS"
-        }
 
     # -------------------- Get Stock Info ------------------------
 
@@ -54,8 +37,7 @@ class IndianStockData:
     @lru_cache(maxsize=100)
     def get_stock_info(self, symbol: str) -> Dict:
         try:
-            yf_symbol = self.nse_symbols.get(symbol.upper(), f"{symbol.upper()}.NS")
-            url = f"{self.base_url}/quote/{yf_symbol}?apikey={self.api_key}"
+            url = f"{self.base_url}/quote/{symbol.upper()}?apikey={self.api_key}"
             response = requests.get(url)
             data = response.json()
 
@@ -88,9 +70,7 @@ class IndianStockData:
     @rate_limit(1)
     def get_historical_data(self, symbol: str, period: str = "1mo") -> Dict:
         try:
-            yf_symbol = self.nse_symbols.get(symbol.upper(), f"{symbol.upper()}.NS")
-            url = f"{self.base_url}/historical-price-full/{yf_symbol}?apikey={self.api_key}&serietype=line"
-
+            url = f"{self.base_url}/historical-price-full/{symbol.upper()}?apikey={self.api_key}&serietype=line"
             response = requests.get(url)
             data = response.json()
 
@@ -121,42 +101,22 @@ class IndianStockData:
     @rate_limit(2)
     def get_top_gainers_losers(self) -> Dict:
         try:
-            stock_list = []
-            for symbol in list(self.nse_symbols.keys())[:12]:
-                info = self.get_stock_info(symbol)
-                if "error" not in info:
-                    stock_list.append(info)
-
-            gainers = sorted(
-                [s for s in stock_list if s["change_percent"] > 0],
-                key=lambda x: x["change_percent"],
-                reverse=True
-            )[:5]
-
-            losers = sorted(
-                [s for s in stock_list if s["change_percent"] < 0],
-                key=lambda x: x["change_percent"]
-            )[:5]
-
+            gainers = requests.get(f"{self.base_url}/stock_market/gainers?apikey={self.api_key}").json()
+            losers = requests.get(f"{self.base_url}/stock_market/losers?apikey={self.api_key}").json()
             return {
-                "top_gainers": gainers,
-                "top_losers": losers,
+                "top_gainers": gainers[:5],
+                "top_losers": losers[:5],
                 "timestamp": datetime.now().isoformat()
             }
-
         except Exception as e:
-            return {"error": f"Failed to calculate movers: {str(e)}"}
+            return {"error": f"Failed to fetch gainers/losers: {str(e)}"}
 
     # -------------------- Search Stock Symbol ------------------------
 
     def search_stocks(self, query: str) -> List[Dict]:
-        results = []
-        query_lower = query.lower()
-        for symbol, mapped in self.nse_symbols.items():
-            if query_lower in symbol.lower():
-                results.append({
-                    "symbol": symbol,
-                    "company_name": symbol,
-                    "sector": "N/A"
-                })
-        return results[:10]
+        try:
+            url = f"{self.base_url}/search?query={query}&limit=10&exchange=NASDAQ&apikey={self.api_key}"
+            response = requests.get(url)
+            return response.json()
+        except Exception as e:
+            return [{"error": f"Search failed: {str(e)}"}]
