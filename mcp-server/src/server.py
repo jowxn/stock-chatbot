@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 import uvicorn
 from stock_data import IndianStockData
 from utils import format_currency, format_percentage
@@ -27,6 +27,13 @@ class MCPRequest(BaseModel):
     method: str
     params: Dict
 
+# Helper function to ensure proper suffix for FMP
+def normalize_symbol(symbol: str) -> str:
+    """Append .BSE suffix if no exchange is specified"""
+    if not symbol.endswith((".BSE", ".NS")):
+        return f"{symbol}.BSE"
+    return symbol
+
 # MCP Endpoints
 @app.get("/")
 async def root():
@@ -38,39 +45,43 @@ async def mcp_handler(request: MCPRequest):
     try:
         method = request.method
         params = request.params
-        
+
         if method == "get_stock_info":
             symbol = params.get("symbol")
             if not symbol:
                 raise HTTPException(status_code=400, detail="Symbol is required")
+            symbol = normalize_symbol(symbol)  # ✅ Ensure .BSE is added
             result = stock_data.get_stock_info(symbol)
-            
+
         elif method == "get_historical_data":
             symbol = params.get("symbol")
             period = params.get("period", "1mo")
             if not symbol:
                 raise HTTPException(status_code=400, detail="Symbol is required")
+            symbol = normalize_symbol(symbol)  # ✅ Ensure .BSE is added
             result = stock_data.get_historical_data(symbol, period)
-            
+
         elif method == "get_top_gainers_losers":
             result = stock_data.get_top_gainers_losers()
-            
+
         elif method == "search_stocks":
             query = params.get("query")
             if not query:
                 raise HTTPException(status_code=400, detail="Query is required")
             result = stock_data.search_stocks(query)
-            
+
         else:
             raise HTTPException(status_code=400, detail=f"Unknown method: {method}")
-        
+
         return {
             "success": True,
             "data": result,
             "method": method
         }
-        
+
     except Exception as e:
+        import traceback
+        traceback.print_exc()  # ✅ Log traceback for debugging
         return {
             "success": False,
             "error": str(e),
@@ -81,6 +92,7 @@ async def mcp_handler(request: MCPRequest):
 @app.get("/stock/{symbol}")
 async def get_stock(symbol: str):
     """Get stock information"""
+    symbol = normalize_symbol(symbol)  # ✅ Normalize here too
     result = stock_data.get_stock_info(symbol)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
@@ -89,6 +101,7 @@ async def get_stock(symbol: str):
 @app.get("/historical/{symbol}")
 async def get_historical(symbol: str, period: str = "1mo"):
     """Get historical stock data"""
+    symbol = normalize_symbol(symbol)  # ✅ Normalize here too
     result = stock_data.get_historical_data(symbol, period)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
